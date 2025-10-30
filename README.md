@@ -68,13 +68,9 @@ bear v. 忍受；承担；生育 n. 熊
 
 (可选) 点击 "4. 导出文章 (HTML)" 保存这篇文章。
 
+## 技术栈
 
-
-### 技术栈
 HTML5
-
 Tailwind CSS (via CDN)
-
 JavaScript (ESM)
-
 Google Gemini API
