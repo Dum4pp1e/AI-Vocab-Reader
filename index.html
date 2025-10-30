@@ -1,0 +1,1747 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>考研英语词库抽取器 (AI阅读版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background-color: #f8fafc; /* Tailwind gray-50 */
+        }
+        .category-item.selected {
+            background-color: #dbeafe; /* Tailwind blue-200 */
+            border-color: #3b82f6; /* Tailwind blue-500 */
+            font-weight: 600;
+        }
+        /* AI高亮词汇的样式 */
+        .highlighted-word {
+            text-decoration: underline;
+            text-decoration-color: #fdba74; /* orange-300 */
+            text-decoration-thickness: 2px;
+            color: #1d4ed8; /* blue-800 */
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .highlighted-word:hover {
+            background-color: #fef3c7; /* yellow-100 */
+            color: #be123c; /* rose-700 */
+        }
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; /* slate-100 */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8; /* slate-400 */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; /* slate-500 */
+        }
+        /* 加载动画 */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        
+        <!-- 标题 -->
+        <header class="mb-6 pb-4 border-b border-slate-300">
+            <h1 class="text-3xl font-bold text-slate-800">考研英语词库抽取器 (AI 阅读版)</h1>
+            <p class="text-slate-600 mt-1">请在下方粘贴您的词库，然后按条目抽取词汇并生成 AI 阅读文章。</p>
+        </header>
+
+        <main class="space-y-6">
+
+            <!-- 控制面板 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <!-- 左列 -->
+                <div class="space-y-6">
+                    <!-- 1. 词库输入 -->
+                    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-lg font-semibold text-slate-700 mb-3">1. 粘贴词库</h2>
+                        <textarea id="vocab-input" rows="4" class="w-full p-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="请在此处粘贴您的词库..."></textarea>
+                        <button id="load-vocab-btn" class="mt-3 w-full bg-blue-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-sm">
+                            载入词库
+                        </button>
+                    </section>
+                    
+                    <!-- 2. 词库总览 -->
+                    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-lg font-semibold text-slate-700 mb-3">2. 词库总览</h2>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center p-3 bg-slate-100 rounded-lg">
+                                <span class="font-medium text-slate-700">总剩余单词:</span>
+                                <span id="total-words-count" class="text-xl font-bold text-blue-600">0</span>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-slate-100 rounded-lg">
+                                <span class="font-medium text-slate-700">总剩余释义:</span>
+                                <span id="total-meanings-count" class="text-xl font-bold text-blue-600">0</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 2.5 词库实时状态 -->
+                    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-lg font-semibold text-slate-700 mb-3">2.5 词库实时状态</h2>
+                        <div id="db-status-monitor" class="w-full h-48 overflow-y-auto p-2 border border-slate-200 rounded-lg text-sm bg-slate-50 space-y-1">
+                            请先载入词库...
+                        </div>
+                    </section>
+                </div>
+                
+                <!-- 右列 -->
+                <div class="space-y-6">
+                    <!-- 1.5 AI 设置 -->
+                    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-lg font-semibold text-slate-700 mb-3">1.5 AI 设置 (本地使用)</h2>
+                        <p class="text-sm text-slate-500 mb-2">支持 Google 官方密钥或代理密钥 (sk-...)。</p>
+                        
+                        <label for="api-key-input" class="text-sm font-medium text-slate-600">API 密钥 (Key)</label>
+                        <input type="password" id="api-key-input" class="w-full p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 mt-1" placeholder="粘贴您的 API Key...">
+                        
+                        <label for="api-endpoint-input" class="text-sm font-medium text-slate-600 mt-3 block">API 基础地址 (Base URL)</label>
+                        <input type="text" id="api-endpoint-input" class="w-full p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 mt-1" placeholder="例如 https://www.chataiapi.com">
+                        
+                        <label for="model-name-input" class="text-sm font-medium text-slate-600 mt-3 block">AI 模型名称 (Model Name)</label>
+                        <input type="text" id="model-name-input" class="w-full p-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 mt-1" value="gemini-2.5-flash">
+                        
+                        <button id="save-api-settings-btn" class="mt-3 w-full bg-green-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-green-700 transition duration-150 shadow-sm">
+                            保存 AI 设置
+                        </button>
+                        <p id="api-key-status" class="text-sm text-green-700 mt-2"></p>
+                    </section>
+
+                    <!-- 3. 条目选择 -->
+                    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                        <h2 class="text-lg font-semibold text-slate-700 mb-3">3. 选择条目</h2>
+                        <div id="category-list" class="space-y-2 max-h-60 overflow-y-auto pr-2">
+                            <p class="text-slate-500 text-sm">请先载入词库...</p>
+                            <!-- 条目将动态插入此处 -->
+                        </div>
+                    </section>
+
+                    <!-- 4. 执行操作 -->
+                    <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 sticky top-8">
+                        <h2 class="text-lg font-semibold text-slate-700 mb-3">4. 执行操作</h2>
+                        <button id="extract-words-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition duration-150 shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>
+                            1. 刷新抽取 (120 释义)
+                        </button>
+                        
+                        <button id="gen-reading-btn" class="mt-3 w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition duration-150 shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed" disabled>
+                            <span class="inline-flex items-center justify-center">
+                                <span>2. ✨ AI 生成考研阅读</span>
+                                <span id="ai-loader" class="loader ml-2 hidden"></span>
+                            </span>
+                        </button>
+                        
+                        <div id="action-buttons-container" class="mt-3 space-y-3">
+                             <button id="confirm-extract-btn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 transition duration-150 shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed hidden">
+                                3. ✅ 确认抽取 (永久移除)
+                            </button>
+                             <button id="export-article-btn" class="w-full bg-sky-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-sky-700 transition duration-150 shadow-sm disabled:bg-slate-300 disabled:cursor-not-allowed hidden">
+                                4. 📥 导出文章 (HTML)
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            </div>
+
+            <!-- 结果显示 -->
+            <section class="space-y-6">
+
+                <!-- 抽取结果 -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-semibold text-slate-700 mb-3">抽取结果 (120 释义)</h2>
+                    <div id="extracted-words-list" class="pr-2 grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-1 text-sm">
+                        <p class="text-slate-500 text-sm col-span-3">请先选择条目，然后点击 "刷新抽取"。</p>
+                        <!-- 抽取结果将动态插入此处 -->
+                    </div>
+                    <button id="copy-words-btn" class="mt-3 bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg hover:bg-slate-300 transition duration-150 hidden">
+                        复制到剪贴板
+                    </button>
+                    <span id="copy-success-msg" class="text-green-600 ml-2 hidden">复制成功!</span>
+                </div>
+
+            </section>
+        </main>
+
+        <!-- AI 输出大板块 -->
+        <section id="ai-output-section" class="mt-6 bg-white p-6 rounded-xl shadow-sm border border-slate-200 hidden">
+            
+            <!-- AI 文章 -->
+            <div id="gemini-reading-container">
+                <h2 class="text-xl font-semibold text-slate-800 mb-4 pb-3 border-b border-slate-200">
+                    AI 生成的阅读文章 (<span id="ai-used-count" class="text-blue-600 font-bold">0</span> 个释义已使用)
+                </h2>
+                <div id="gemini-reading-output" class="prose prose-lg max-w-none text-gray-800 leading-relaxed space-y-4">
+                    <!-- AI 文章内容 -->
+                </div>
+            </div>
+
+            <!-- AI 文章解析 -->
+            <div id="gemini-analysis-container" class="mt-6 hidden">
+                <h3 class="text-lg font-semibold text-indigo-700 mb-3 pt-3 border-t border-slate-200">
+                    深度文章解析
+                </h3>
+                <div id="gemini-analysis-output" class="prose max-w-none text-gray-700 leading-relaxed bg-indigo-50 p-4 rounded-lg">
+                    <!-- AI 解析内容 -->
+                </div>
+            </div>
+
+            <!-- AI 全文翻译 -->
+            <div id="gemini-translation-container" class="mt-6 hidden">
+                <h3 class="text-lg font-semibold text-gray-700 mb-3 pt-3 border-t border-slate-200">
+                    全文翻译
+                </h3>
+                <div id="gemini-translation-output" class="prose max-w-none text-gray-600 leading-relaxed bg-gray-50 p-4 rounded-lg">
+                    <!-- AI 翻译内容 -->
+                </div>
+            </div>
+
+            <!-- 未使用词汇 -->
+            <div id="gemini-unused-container" class="mt-6 hidden">
+                <h3 class="text-lg font-semibold text-gray-700 mb-3 pt-3 border-t border-slate-200">
+                    未在文章中使用的词汇 (将保留在词库):
+                </h3>
+                <div id="gemini-unused-output" class="text-sm text-slate-600 space-y-1 max-h-48 overflow-y-auto pr-2">
+                    <!-- 未使用词汇列表 -->
+                </div>
+            </div>
+
+        </section>
+
+    </div>
+
+    <!-- 隐藏的文本域，用于复制 -->
+    <textarea id="copy-textarea" class="absolute -left-full"></textarea>
+
+    <!-- 底部消息提示 -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-green-600 text-white py-2 px-5 rounded-lg shadow-xl transition-opacity duration-300 opacity-0 hidden">
+        保存成功！
+    </div>
+
+    <script type="module">
+        // --- 全局变量与常量 ---
+        const DB_KEY = 'vocabExtractorDb'; // 存储词库进度
+        const TEXT_KEY = 'vocabExtractorText'; // 存储词库原文
+        const API_KEY = 'vocabExtractorApiKey'; // 存储用户 API Key
+        const API_ENDPOINT = 'vocabExtractorApiEndpoint'; // 存储用户 API 基础地址
+        const MODEL_NAME = 'vocabExtractorModelName'; // 存储用户 AI 模型名称
+        
+        const GOOGLE_API_BASE_URL = "https://generativelanguage.googleapis.com";
+        const GOOGLE_API_PATH_PREFIX = "/v1beta/models/";
+        
+        let originalDatabase = {}; // { category: [ { word, parts: [ { part, meanings: [] } ] } ] }
+        let currentDatabase = {}; // 深拷贝 originalDatabase，用于操作
+        let currentExtract = []; // 当前抽取的120个释义单元 { word, part, meaning, category, ...indices }
+        let currentRealUsedExtractItems = []; // AI 实际使用的、且在 currentExtract 中匹配到的释义单元
+        let currentAiUsedCount = 0; // currentRealUsedExtractItems.length
+        
+        let selectedCategory = null; // 当前选中的条目
+        let userApiKey = ''; // 用户存储的 API Key
+        let userApiEndpoint = ''; // 用户存储的 API 基础地址
+        let userModelName = 'gemini-2.5-flash'; // 默认模型名称
+
+        // --- DOM 元素引用 ---
+        const vocabInput = document.getElementById('vocab-input');
+        const loadVocabBtn = document.getElementById('load-vocab-btn');
+        // const resetVocabBtn = document.getElementById('reset-vocab-btn'); // 已移除
+        const totalWordsCountEl = document.getElementById('total-words-count');
+        const totalMeaningsCountEl = document.getElementById('total-meanings-count');
+        const categoryListEl = document.getElementById('category-list');
+        const extractWordsBtn = document.getElementById('extract-words-btn');
+        const confirmExtractBtn = document.getElementById('confirm-extract-btn');
+        const genReadingBtn = document.getElementById('gen-reading-btn');
+        const aiLoader = document.getElementById('ai-loader');
+        const extractedWordsListEl = document.getElementById('extracted-words-list');
+        const copyWordsBtn = document.getElementById('copy-words-btn');
+        const copySuccessMsg = document.getElementById('copy-success-msg');
+        const copyTextarea = document.getElementById('copy-textarea');
+        const exportArticleBtn = document.getElementById('export-article-btn');
+        
+        // [New] 词库状态监视器
+        const dbStatusMonitor = document.getElementById('db-status-monitor');
+        
+        // AI 输出区域
+        const aiOutputSection = document.getElementById('ai-output-section');
+        const aiUsedCountEl = document.getElementById('ai-used-count');
+        
+        const geminiReadingContainer = document.getElementById('gemini-reading-container');
+        const geminiReadingOutput = document.getElementById('gemini-reading-output');
+        
+        const geminiUnusedContainer = document.getElementById('gemini-unused-container');
+        const geminiUnusedOutput = document.getElementById('gemini-unused-output');
+        
+        const geminiAnalysisContainer = document.getElementById('gemini-analysis-container');
+        const geminiAnalysisOutput = document.getElementById('gemini-analysis-output');
+
+        const geminiTranslationContainer = document.getElementById('gemini-translation-container');
+        const geminiTranslationOutput = document.getElementById('gemini-translation-output');
+        
+        // AI 设置区域
+        const apiKeyInput = document.getElementById('api-key-input');
+        const apiEndpointInput = document.getElementById('api-endpoint-input');
+        const modelNameInput = document.getElementById('model-name-input');
+        const saveApiSettingsBtn = document.getElementById('save-api-settings-btn');
+        const apiKeyStatus = document.getElementById('api-key-status');
+        const toast = document.getElementById('toast');
+
+
+        // --- 1. 词库解析与管理 ---
+
+        /**
+         * 词性词典 (V4 - 修复 'centigrade n./adj.' BUG)
+         */
+        // [修复] 根据用户的权威列表，彻底重构
+        const POS_LIST = [
+            'adj./adv.', 'prep./adv.', 'n./adj.', 'n./v.', 'v./n.', // 优先匹配最长的
+            'adj.', 'adv.', 'n.', 'v.', 'num.', 'prep.', 'vt.', 'vi.',
+        ];
+
+        // [修复] 创建两个 Set 用于快速查找
+        // POS_DICT_WITH_DOT: { "v./n.", "adj.", "n." }
+        const POS_DICT_WITH_DOT = new Set(POS_LIST);
+        // POS_DICT_WITHOUT_DOT: { "v./n", "adj", "n" }
+        const POS_DICT_WITHOUT_DOT = new Set(POS_LIST.map(p => p.slice(0, -1)));
+        
+
+        /**
+         * 解析输入的词库文本 (V11 - 修复 'centigrade n./adj.' BUG)
+         */
+        function parseVocabText(text) {
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            const db = {};
+            let currentCategory = '未分类';
+
+            // [V11 修复] 
+            // 1. 构建按长度排序的 *匹配* 正则
+            // (e.g., n\.\s*\/\s*adj\.|...|adj\.)
+            const posPattern_sorted = POS_LIST
+                .map(p => p.replace(/\./g, '\\.').replace(/\//g, '\\s*\\/\\s*')) // V7 修复
+                .sort((a, b) => b.length - a.length) // 优先匹配长的
+                .join('|');
+            
+            // 2. 这是用于 *匹配* 字符串开头的正则
+            const matchRegex = new RegExp(`^(${posPattern_sorted})\\s*(.*)`);
+            // 3. 这是用于 *查找* 剩余字符串中 *下一个* 词性的正则
+            const findNextRegex = new RegExp(`(${posPattern_sorted})`, 'g');
+
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('###')) {
+                    // 匹配条目
+                    currentCategory = line.replace(/###\s*/, '').trim();
+                    if (!db[currentCategory]) {
+                        db[currentCategory] = [];
+                    }
+                } else if (line) {
+                    // 解析单词行
+                    const parts = line.split(' ');
+                    if (parts.length < 2) return; // 格式不符
+
+                    const word = parts[0];
+                    const definitions = line.substring(word.length).trim(); // "n.块;肿块 v.形成块"
+                    
+                    const wordEntry = {
+                        word: word,
+                        parts: [] // { part: 'v.', meanings: ['形成块'] }
+                    };
+
+                    // [V11 修复] 使用迭代消耗逻辑，替换 V7/V10 的 split() 逻辑
+                    let remainingDefinitions = definitions.trim();
+
+                    while (remainingDefinitions.length > 0) {
+                        const match = remainingDefinitions.match(matchRegex);
+                        
+                        if (!match) {
+                            // 剩余字符串不以词性开头，退出
+                            break; 
+                        }
+                        
+                        const currentPart = match[1]; // e.g., "n./adj." (V11 修复) or "n."
+                        let meaningsStr = match[2]; // e.g., "摄氏温度计（的）" or "块;肿块 v.形成块"
+                        
+                        // 查找 meaningsStr 中是否 *还包含* 其它词性
+                        findNextRegex.lastIndex = 0; // 重置正则
+                        const nextMatch = findNextRegex.exec(meaningsStr);
+                        
+                        if (nextMatch) {
+                            // 找到了下一个词性 (e.g., "v." in "块;肿块 v.形成块")
+                            // 1. 更新 remainingDefinitions 为下一个词性及其之后
+                            remainingDefinitions = meaningsStr.substring(nextMatch.index).trim();
+                            // 2. 截取当前词性的释义
+                            meaningsStr = meaningsStr.substring(0, nextMatch.index).trim();
+                        } else {
+                            // 未找到下一个词性，这是最后一个
+                            remainingDefinitions = ""; // 退出 while 循环
+                            meaningsStr = meaningsStr.trim();
+                        }
+
+                        // [V10 逻辑保留] 检查 meaningsStr 是否只是一个孤立的词性
+                        const meaningsStrTrimmed = meaningsStr.trim();
+                        const meaningsStrCleaned = meaningsStrTrimmed.endsWith('.') 
+                                            ? meaningsStrTrimmed.slice(0, -1) 
+                                            : meaningsStrTrimmed;
+                        const isOnlyPos = POS_DICT_WITH_DOT.has(meaningsStrTrimmed) ||
+                                          POS_DICT_WITHOUT_DOT.has(meaningsStrCleaned);
+                        
+                        if (meaningsStr && !isOnlyPos) { 
+                            // [V10 逻辑保留]
+                            const meanings = meaningsStr.split(';').map(m => m.trim()).filter(m => m);
+                            
+                            const finalMeanings = meanings.filter(m => {
+                                if (m === '/' || m.trim() === '') return false; 
+                                const mTrimmed = m.trim();
+                                const mCleaned = mTrimmed.endsWith('.') ? mTrimmed.slice(0, -1) : mTrimmed;
+                                const isMeaningPos = POS_DICT_WITH_DOT.has(mTrimmed) ||
+                                                     POS_DICT_WITHOUT_DOT.has(mCleaned);
+                                return !isMeaningPos; 
+                            });
+                            
+                            if (finalMeanings.length > 0) {
+                                wordEntry.parts.push({
+                                    part: currentPart,
+                                    meanings: finalMeanings
+                                });
+                            }
+                        }
+                        // 如果 meaningsStr 为空 (e.g., "n. v") 或 isOnlyPos (e.g., "stick n. v")
+                        // 则不添加这个词性部分
+                    }
+                    
+                    if (wordEntry.parts.length > 0) {
+                        if (!db[currentCategory]) {
+                            db[currentCategory] = [];
+                        }
+                        db[currentCategory].push(wordEntry);
+                    }
+                }
+            });
+            return db;
+        }
+
+        /**
+         * 计算数据库中的总单词数和总释义数
+         * @param {object} db - 词库
+         * @returns {object} { totalWords, totalMeanings }
+         */
+        function getDatabaseStats(db) {
+            let totalWords = 0;
+            let totalMeanings = 0;
+            for (const category in db) {
+                totalWords += db[category].length;
+                db[category].forEach(wordEntry => {
+                    wordEntry.parts.forEach(part => {
+                        totalMeanings += part.meanings.length;
+                    });
+                });
+            }
+            return { totalWords, totalMeanings };
+        }
+
+        /**
+         * 计算指定分类的统计信息
+         */
+        function getCategoryStats(db, category) {
+            let words = 0;
+            let meanings = 0;
+            if (db[category]) {
+                words = db[category].length;
+                db[category].forEach(wordEntry => {
+                    wordEntry.parts.forEach(part => {
+                        meanings += part.meanings.length;
+                    });
+                });
+            }
+            return { words, meanings };
+        }
+
+        /**
+         * 深拷贝 (用于创建可操作的 currentDatabase)
+         */
+        function deepClone(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        // --- 2. 界面更新与渲染 ---
+
+        /**
+         * [New] 更新词库实时状态监视器 (V12 - UI 优化)
+         */
+        function updateDbStatusMonitor() {
+            dbStatusMonitor.innerHTML = ''; // 清空
+            
+            const categories = Object.keys(currentDatabase);
+
+            if (categories.length === 0) {
+                dbStatusMonitor.innerHTML = '<p class="text-slate-500 p-2">词库为空。</p>';
+                return;
+            }
+
+            categories.forEach((category, index) => {
+                const words = currentDatabase[category];
+                
+                // 1. 创建 <details> 元素
+                const detailsEl = document.createElement('details');
+                detailsEl.className = "group"; // 用于控制 marker
+                
+                // 2. 创建 <summary> 元素 (条目)
+                const summaryEl = document.createElement('summary');
+                // [V12] 使用 flex 布局自定义箭头和文本
+                summaryEl.className = "flex items-center list-none p-1 rounded-md cursor-pointer hover:bg-slate-200 sticky top-0 bg-slate-50"; // sticky 保证标题可见
+                
+                // 自定义箭头
+                const arrow = document.createElement('span');
+                arrow.className = "w-4 h-4 text-slate-500 group-open:rotate-90 transition-transform duration-100 mr-1 flex-shrink-0";
+                arrow.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>`;
+                
+                // 条目文本和统计
+                const summaryText = document.createElement('span');
+                summaryText.textContent = `${category} (${words.length} 词)`;
+                summaryText.className = "font-semibold text-indigo-700"; // 条目颜色
+                
+                summaryEl.appendChild(arrow);
+                summaryEl.appendChild(summaryText);
+                
+                detailsEl.appendChild(summaryEl);
+
+                // 3. 创建单词容器
+                const wordsContainer = document.createElement('div');
+                wordsContainer.className = "pl-5 pr-2 pt-1 pb-2 space-y-2"; // 缩进
+
+                words.forEach(wordEntry => {
+                    const wordBlock = document.createElement('div');
+                    
+                    // 单词
+                    const wordSpan = document.createElement('span');
+                    wordSpan.textContent = wordEntry.word;
+                    wordSpan.className = "font-medium text-slate-800"; // 单词颜色
+                    wordBlock.appendChild(wordSpan);
+
+                    // 词性和释义
+                    const partsContainer = document.createElement('div');
+                    partsContainer.className = "pl-3 space-y-1"; // 词性缩进
+
+                    wordEntry.parts.forEach(partEntry => {
+                        const partEl = document.createElement('div');
+                        
+                        // 词性
+                        const partSpan = document.createElement('span');
+                        partSpan.textContent = partEntry.part;
+                        partSpan.className = "text-green-700 italic font-medium text-xs mr-2"; // 词性颜色
+                        
+                        // 释义
+                        const meaningsSpan = document.createElement('span');
+                        meaningsSpan.textContent = partEntry.meanings.join('; ');
+                        meaningsSpan.className = "text-gray-700"; // 释义颜色
+
+                        partEl.appendChild(partSpan);
+                        partEl.appendChild(meaningsSpan);
+                        partsContainer.appendChild(partEl);
+                    });
+                    
+                    wordBlock.appendChild(partsContainer);
+                    wordsContainer.appendChild(wordBlock);
+                });
+                
+                detailsEl.appendChild(wordsContainer);
+                dbStatusMonitor.appendChild(detailsEl);
+
+                // 默认展开第一个条目
+                if (index === 0) {
+                    detailsEl.open = true;
+                }
+            });
+        }
+
+        /**
+         * 更新"词库总览"的显示
+         */
+        function updateTotalStatsDisplay() {
+            const { totalWords, totalMeanings } = getDatabaseStats(currentDatabase);
+            totalWordsCountEl.textContent = totalWords;
+            totalMeaningsCountEl.textContent = totalMeanings;
+        }
+
+        /**
+         * 更新"条目选择"区域的显示
+         */
+        function initializeCategorySelection() {
+            categoryListEl.innerHTML = ''; // 清空
+            const categories = Object.keys(currentDatabase);
+            
+            if (categories.length === 0) {
+                categoryListEl.innerHTML = '<p class="text-slate-500 text-sm">请先载入词库...</p>';
+                return;
+            }
+
+            categories.forEach(category => {
+                const { words, meanings } = getCategoryStats(currentDatabase, category);
+                const item = document.createElement('div');
+                item.className = 'category-item p-3 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 hover:shadow-md transition-all duration-150';
+                item.dataset.category = category;
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium text-slate-800 text-sm">${category}</span>
+                    </div>
+                    <div class="flex justify-between items-center mt-2 text-xs">
+                        <span class="text-slate-500">单词: <span class="font-semibold text-slate-700">${words}</span></span>
+                        <span class="text-slate-500">释义: <span class="font-semibold text-slate-700">${meanings}</span></span>
+                    </div>
+                `;
+                item.addEventListener('click', () => handleCategorySelect(category, item));
+                categoryListEl.appendChild(item);
+            });
+            
+            // 自动选择上一次选择的条目
+            if (selectedCategory && currentDatabase[selectedCategory]) {
+                const el = categoryListEl.querySelector(`[data-category="${CSS.escape(selectedCategory)}"]`);
+                if (el) {
+                    el.classList.add('selected');
+                    extractWordsBtn.disabled = false;
+                }
+            }
+        }
+
+        /**
+         * 更新单个条目的统计显示
+         */
+        function updateCategoryStatsDisplay(category) {
+            const item = categoryListEl.querySelector(`[data-category="${CSS.escape(category)}"]`);
+            if (item) {
+                const { words, meanings } = getCategoryStats(currentDatabase, category);
+                item.querySelector('.text-xs').innerHTML = `
+                    <span class="text-slate-500">单词: <span class="font-semibold text-slate-700">${words}</span></span>
+                    <span class="text-slate-500">释义: <span class="font-semibold text-slate-700">${meanings}</span></span>
+                `;
+                // 如果该条目空了，显示不同样式
+                if (words === 0 && meanings === 0) {
+                    item.classList.add('opacity-50', 'line-through');
+                    item.classList.remove('selected');
+                    // 禁用抽取按钮
+                    if (selectedCategory === category) {
+                        extractWordsBtn.disabled = true;
+                        selectedCategory = null;
+                    }
+                }
+            }
+            // 每次更新条目后，都同步更新总览
+            updateTotalStatsDisplay();
+        }
+
+        /**
+         * 渲染抽取的120个释义
+         */
+        function renderExtractedWords(words) {
+            extractedWordsListEl.innerHTML = ''; // 清空
+            if (words.length === 0) {
+                extractedWordsListEl.innerHTML = '<p class="text-slate-500 text-sm col-span-3">该条目已抽空！</p>';
+                copyWordsBtn.style.display = 'none';
+                genReadingBtn.disabled = true;
+                return;
+            }
+            
+            // [修复] 移除 max-h-96 和 overflow-y-auto, 设为 3 列
+            extractedWordsListEl.className = 'pr-2 grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-1 text-sm';
+            
+            let copyText = '';
+            words.forEach(item => {
+                const el = document.createElement('div');
+                const text = `${item.word} ${item.part} ${item.meaning}`;
+                el.textContent = text;
+                el.className = 'py-1 px-2 hover:bg-slate-100 rounded';
+                extractedWordsListEl.appendChild(el);
+                copyText += text + '\n';
+            });
+            
+            copyTextarea.value = copyText;
+            copyWordsBtn.style.display = 'inline-block';
+            copySuccessMsg.style.display = 'none';
+            
+            // 启用 AI 按钮
+            genReadingBtn.disabled = false;
+        }
+
+        // --- 3. 事件处理器 ---
+
+        /**
+         * 保存 AI 设置
+         */
+        saveApiSettingsBtn.addEventListener('click', () => {
+            const key = apiKeyInput.value.trim();
+            const endpoint = apiEndpointInput.value.trim();
+            const model = modelNameInput.value.trim();
+            
+            if (key) {
+                localStorage.setItem(API_KEY, key);
+                userApiKey = key;
+            }
+            
+            if (model) {
+                localStorage.setItem(MODEL_NAME, model);
+                userModelName = model;
+            } else {
+                localStorage.removeItem(MODEL_NAME);
+                userModelName = 'gemini-2.5-flash'; // 默认模型
+                modelNameInput.value = userModelName;
+            }
+            
+            if (endpoint) {
+                const cleanedEndpoint = endpoint.replace(/\/$/, '');
+                localStorage.setItem(API_ENDPOINT, cleanedEndpoint);
+                userApiEndpoint = cleanedEndpoint;
+                apiEndpointInput.value = cleanedEndpoint;
+            } else {
+                localStorage.removeItem(API_ENDPOINT);
+                userApiEndpoint = '';
+            }
+            
+            apiKeyStatus.textContent = "AI 设置已保存到本地浏览器。";
+            showToast("设置已保存");
+            
+            setTimeout(() => {
+                apiKeyStatus.textContent = "";
+            }, 3000);
+        });
+
+        /**
+         * 显示 Toast 提示
+         */
+        function showToast(message) {
+            toast.textContent = message;
+            toast.style.display = 'block';
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                }, 300);
+            }, 2000);
+        }
+
+        /**
+         * 载入时检查 AI 设置
+         */
+        function loadApiSettings() {
+            const savedKey = localStorage.getItem(API_KEY);
+            const savedEndpoint = localStorage.getItem(API_ENDPOINT);
+            const savedModel = localStorage.getItem(MODEL_NAME);
+            
+            if (savedKey) {
+                userApiKey = savedKey;
+                apiKeyInput.value = savedKey;
+            }
+            if (savedEndpoint) {
+                userApiEndpoint = savedEndpoint;
+                apiEndpointInput.value = savedEndpoint;
+            }
+            if (savedModel) {
+                userModelName = savedModel;
+                modelNameInput.value = savedModel;
+            } else {
+                modelNameInput.value = userModelName; // 显示默认值
+            }
+            
+            if (savedKey) {
+                apiKeyStatus.textContent = "已从本地浏览器载入 AI 设置。";
+            } else {
+                apiKeyStatus.textContent = "请提供 API 密钥以使用 AI 功能。";
+            }
+        }
+
+        /**
+         * 载入词库按钮
+         */
+        loadVocabBtn.addEventListener('click', () => {
+            const text = vocabInput.value;
+            if (text.trim() === '') return;
+            
+            originalDatabase = parseVocabText(text);
+            currentDatabase = deepClone(originalDatabase);
+            
+            localStorage.setItem(TEXT_KEY, text);
+            localStorage.setItem(DB_KEY, JSON.stringify(currentDatabase));
+
+            updateTotalStatsDisplay();
+            initializeCategorySelection();
+            updateDbStatusMonitor(); // [New] Call
+            
+            resetUiOutputs();
+            showToast("词库载入并保存成功！");
+        });
+
+        /**
+         * 重置词库按钮
+         */
+        // resetVocabBtn.addEventListener('click', ...); // 整个函数已移除
+
+        /**
+         * 选择条目
+         */
+        function handleCategorySelect(category, element) {
+            document.querySelectorAll('.category-item.selected').forEach(el => {
+                el.classList.remove('selected');
+            });
+
+            element.classList.add('selected');
+            selectedCategory = category;
+
+            const { meanings } = getCategoryStats(currentDatabase, category);
+            if (meanings > 0) {
+                extractWordsBtn.disabled = false;
+            } else {
+                extractWordsBtn.disabled = true;
+            }
+            
+            resetUiOutputs();
+        }
+
+        /**
+         * 1. 刷新抽取 (120 词)
+         */
+        extractWordsBtn.addEventListener('click', handleExtractWords);
+        
+        function handleExtractWords() {
+            if (!selectedCategory || !currentDatabase[selectedCategory]) return;
+            
+            const EXTRACT_COUNT = 120;
+            const categoryWords = currentDatabase[selectedCategory];
+            const availableMeanings = []; 
+
+            categoryWords.forEach((wordEntry, wordIndex) => {
+                wordEntry.parts.forEach((part, partIndex) => {
+                    part.meanings.forEach((meaning, meaningIndex) => {
+                        availableMeanings.push({
+                            word: wordEntry.word,
+                            part: part.part,
+                            meaning: meaning,
+                            category: selectedCategory,
+                            wordIndex: wordIndex,
+                            partIndex: partIndex,
+                            meaningIndex: meaningIndex
+                        });
+                    });
+                });
+            });
+
+            shuffleArray(availableMeanings);
+
+            currentExtract = availableMeanings.slice(0, EXTRACT_COUNT);
+
+            renderExtractedWords(currentExtract);
+
+            genReadingBtn.disabled = (currentExtract.length === 0);
+            confirmExtractBtn.style.display = 'none';
+            confirmExtractBtn.disabled = true;
+            exportArticleBtn.style.display = 'none';
+            
+            aiOutputSection.style.display = 'none';
+        }
+
+        /**
+         * 3. 确认抽取 (永久移除)
+         */
+        confirmExtractBtn.addEventListener('click', () => {
+            
+            if (currentAiUsedCount === 0 || !selectedCategory) {
+                 console.error("确认抽取失败，没有已用词汇或未选条目。");
+                 return;
+            }
+
+            let removedCount = 0;
+            // [修复] 必须使用 currentRealUsedExtractItems (真实匹配的释义单元)
+            const itemsToRemoveFromDb = currentRealUsedExtractItems; 
+            
+            // 反向排序索引，从后往前删除，避免索引错位
+            itemsToRemoveFromDb.sort((a, b) => {
+                if (a.wordIndex !== b.wordIndex) return b.wordIndex - a.wordIndex;
+                if (a.partIndex !== b.partIndex) return b.partIndex - b.partIndex;
+                return b.meaningIndex - b.meaningIndex;
+            });
+
+            const deletedIndexes = new Set(); // 防止重复删除
+            
+            itemsToRemoveFromDb.forEach(item => {
+                const uniqueId = `${item.wordIndex}-${item.partIndex}-${item.meaningIndex}`;
+                if (deletedIndexes.has(uniqueId)) {
+                    return; // 已经删过了
+                }
+
+                try {
+                    // 必须从 currentDatabase[item.category] 中获取最新的引用
+                    const wordEntry = currentDatabase[item.category][item.wordIndex];
+                    if (wordEntry && wordEntry.word === item.word) {
+                        const partEntry = wordEntry.parts[item.partIndex];
+                        if (partEntry && partEntry.part === item.part) {
+                            const meaning = partEntry.meanings[item.meaningIndex];
+                            if (meaning === item.meaning) {
+                                // 执行删除
+                                partEntry.meanings.splice(item.meaningIndex, 1);
+                                removedCount++;
+                                deletedIndexes.add(uniqueId); 
+
+                                // 如果该词性下没有释义了，删除该词性
+                                if (partEntry.meanings.length === 0) {
+                                    wordEntry.parts.splice(item.partIndex, 1);
+                                }
+                                
+                                // 如果该单词下没有词性了，删除该单词
+                                if (wordEntry.parts.length === 0) {
+                                    currentDatabase[item.category].splice(item.wordIndex, 1);
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error removing word from DB:", e, item);
+                }
+            });
+
+            if (removedCount > 0) {
+                localStorage.setItem(DB_KEY, JSON.stringify(currentDatabase));
+                updateCategoryStatsDisplay(selectedCategory);
+                updateDbStatusMonitor(); // [New] Call
+            }
+
+            // 重置UI
+            extractWordsBtn.disabled = false;
+            genReadingBtn.disabled = true;
+            confirmExtractBtn.style.display = 'none';
+            confirmExtractBtn.disabled = true;
+            // [新功能] 导出按钮也会被重置(隐藏)
+            // exportArticleBtn.style.display = 'none'; // 保留导出按钮，但禁用
+            exportArticleBtn.disabled = true;
+
+
+            extractedWordsListEl.innerHTML = '<p class="text-slate-500 text-sm col-span-3">已确认。请重新 "刷新抽取"。</p>';
+            copyWordsBtn.style.display = 'none';
+
+            // 清空当前状态
+            currentExtract = [];
+            currentRealUsedExtractItems = [];
+            currentAiUsedCount = 0; // [修复] 重置计数器
+            
+            // 保留文章，但隐藏"未使用"列表
+            geminiUnusedContainer.style.display = 'none';
+            
+            showToast(`成功移除了 ${removedCount} 个释义`);
+        });
+
+        /**
+         * 复制按钮
+         */
+        copyWordsBtn.addEventListener('click', () => {
+            copyTextarea.select();
+            try {
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(copyTextarea.value).then(() => {
+                        copySuccessMsg.style.display = 'inline';
+                        setTimeout(() => {
+                            copySuccessMsg.style.display = 'none';
+                        }, 2000);
+                    }, () => {
+                        document.execCommand('copy');
+                        copySuccessMsg.style.display = 'inline';
+                         setTimeout(() => {
+                            copySuccessMsg.style.display = 'none';
+                        }, 2000);
+                    });
+                } else {
+                    document.execCommand('copy');
+                    copySuccessMsg.style.display = 'inline';
+                    setTimeout(() => {
+                        copySuccessMsg.style.display = 'none';
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+            }
+            window.getSelection().removeAllRanges();
+        });
+
+        /**
+         * 重置所有输出区域 (左右侧)
+         */
+        function resetUiOutputs() {
+            extractedWordsListEl.innerHTML = '<p class="text-slate-500 text-sm col-span-3">请先选择条目，然后点击 "刷新抽取"。</p>';
+            copyWordsBtn.style.display = 'none';
+            copySuccessMsg.style.display = 'none';
+            
+            aiOutputSection.style.display = 'none';
+            geminiReadingOutput.innerHTML = '';
+            geminiUnusedOutput.innerHTML = '';
+            geminiAnalysisOutput.innerHTML = '';
+            geminiTranslationOutput.innerHTML = '';
+            aiUsedCountEl.textContent = '0';
+
+            genReadingBtn.disabled = true;
+            confirmExtractBtn.style.display = 'none';
+            confirmExtractBtn.disabled = true;
+            exportArticleBtn.style.display = 'none';
+
+            currentExtract = [];
+            currentRealUsedExtractItems = [];
+            currentAiUsedCount = 0;
+        }
+
+        /**
+         * Fisher-Yates 洗牌算法
+         */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        // --- 4. Gemini AI 功能 ---
+
+        /**
+         * HTML 实体解码 (修复 &quot; 问题)
+         */
+        function decodeHTMLEntities(text) {
+            if (typeof text !== 'string') return text;
+            
+            let decodedText = text;
+
+            // 1. 先解码常见的转义实体
+            try {
+                 // [修复] 必须先解码 &quot;
+                 decodedText = decodedText.replace(/&quot;/g, '"')
+                                     .replace(/&lt;/g, '<')
+                                     .replace(/&gt;/g, '>')
+                                     .replace(/&amp;/g, '&')
+                                     .replace(/\\"/g, '"'); // 解码转义的引号
+            } catch(e) { console.error("Error in regex replace:", e); }
+
+            // 2. [修复] 移除AI可能错误添加的 \ (例如 \n)
+            try {
+                // 只替换 \\n 和 \\t, 保留 \n
+                decodedText = decodedText.replace(/\\\\n/g, '\n').replace(/\\\\t/g, '\t');
+                
+            } catch(e) { console.error("Error cleaning backslashes:", e); }
+
+
+            // 3. 使用 textarea 做最终解码 (用于 &apos; &#39; 等)
+            try {
+                const textarea = document.createElement('textarea');
+                textarea.innerHTML = decodedText;
+                return textarea.value;
+            } catch (e) {
+                console.error("Error decoding with textarea:", e);
+                return decodedText; // 返回已解码的部分
+            }
+        }
+
+        /**
+         * 2. AI 生成考研阅读
+         */
+        genReadingBtn.addEventListener('click', handleGenReading);
+
+        async function handleGenReading() {
+            if (currentExtract.length === 0) {
+                showAiError("没有可用于生成文章的词汇。");
+                return;
+            }
+            
+            const wordListString = currentExtract.map(item => `- ${item.word} (${item.part} ${item.meaning})`).join('\n');
+            const categoryName = selectedCategory || "综合主题";
+            
+            const themeOnly = categoryName.replace(/###\s*[\IVXLC]+\.\s*/, '').split('(')[0].trim();
+            const themeFinal = themeOnly.replace(/、|与/g, '或'); 
+
+            let apiKey = userApiKey;
+            // 检查是否在 Canvas 环境中
+            if (!apiKey && typeof __app_id !== 'undefined') {
+                apiKey = ""; // 在 Canvas 中，设置为空字符串以使用提供的密钥
+            }
+            
+            if (apiKey === null || apiKey === undefined) {
+                showAiError("AI 请求失败：未提供 API 密钥。请在左侧 'AI 设置' 框中输入您的密钥。");
+                apiKeyStatus.textContent = "请提供 API 密钥以使用 AI 功能。";
+                return;
+            }
+            
+            const modelName = userModelName || 'gemini-2.5-flash';
+            
+            // --- 开始请求 ---
+            
+            genReadingBtn.disabled = true;
+            genReadingBtn.innerHTML = '<span class="inline-flex items-center justify-center"><span id="ai-loader" class="loader mr-2"></span>正在生成...</span>';
+            aiOutputSection.style.display = 'block'; 
+            
+            geminiReadingOutput.innerHTML = '<div class="flex items-center justify-center p-8"><div class="loader"></div><span class="ml-3 text-slate-500">AI 正在努力创作中，请稍候...</span></div>';
+            geminiUnusedContainer.style.display = 'none';
+            geminiAnalysisContainer.style.display = 'none';
+            geminiTranslationContainer.style.display = 'none';
+            geminiUnusedOutput.innerHTML = '';
+            geminiAnalysisOutput.innerHTML = '';
+            geminiTranslationOutput.innerHTML = '';
+            aiUsedCountEl.textContent = '0';
+            currentRealUsedExtractItems = [];
+            currentAiUsedCount = 0;
+            confirmExtractBtn.style.display = 'none';
+            exportArticleBtn.style.display = 'none';
+
+            const { systemPrompt, userQuery } = buildGeminiPrompt(themeFinal, wordListString);
+            const payload = buildGeminiPayload(systemPrompt, userQuery); 
+            
+            let apiUrl = '';
+            let headers = { 'Content-Type': 'application/json' };
+
+            const googleApiEndpointPath = `${GOOGLE_API_PATH_PREFIX}${modelName}:generateContent`;
+
+            if (userApiEndpoint) {
+                // 使用用户自定义的代理地址
+                let baseEndpoint = userApiEndpoint;
+                if (baseEndpoint.endsWith('/v1')) {
+                    // 适配 /v1 结尾的代理
+                    baseEndpoint = baseEndpoint.slice(0, -3);
+                }
+                
+                apiUrl = baseEndpoint + googleApiEndpointPath;
+                // 代理通常需要 Bearer Token
+                headers['Authorization'] = `Bearer ${apiKey}`;
+                
+            } else {
+                // 使用 Google 官方地址
+                apiUrl = GOOGLE_API_BASE_URL + googleApiEndpointPath + `?key=${apiKey}`;
+            }
+
+            let jsonString = '';
+            let cleanedJsonString = ''; // [修复] 作用域提升
+                    
+            try {
+                // [Canvas] 增加指数退避重试
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(payload)
+                }, 3); // 重试3次
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error("API Error Response:", errorBody);
+                    try {
+                        const errorJson = JSON.parse(errorBody);
+                        if (errorJson.error && errorJson.error.message) {
+                            if (errorJson.error.message.includes("model") && errorJson.error.message.includes("not found")) {
+                                throw new Error(`API 请求失败 (404 Not Found): 模型名称 "${modelName}" 未找到。请在 AI 设置中检查模型名称。`);
+                            }
+                            throw new Error(`API request failed with status ${response.status}: ${errorJson.error.message}`);
+                        }
+                    } catch (e) {
+                         // errorBody 不是 JSON
+                         throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
+                    }
+                    // 备用错误
+                    throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                    jsonString = result.candidates[0].content.parts[0].text;
+                }
+
+                if (jsonString) {
+                    try {
+                        // 移除可能的 markdown 标记
+                        cleanedJsonString = jsonString.replace(/^```json\s*|```\s*$/g, '');
+                        
+                        // 解码 HTML 实体
+                        cleanedJsonString = decodeHTMLEntities(cleanedJsonString);
+                        
+                        const data = JSON.parse(cleanedJsonString);
+                        
+                        // [修复] V5 BUG - 检查 data.passageContent
+                        if (!data.passageTitle || !data.passageContent || !data.usedWords) {
+                             console.error("AI returned invalid structure:", data);
+                             let errorContent = data.passageTitle || (data.passage ? data.passage : (data.passageContent ? data.passageContent : JSON.stringify(data)));
+                             showAiError(`AI 返回了无效的数据结构（可能丢失了 usedWords 列表或文章内容）。\nAI 的回复是：${escapeHTML(errorContent)}`);
+                             return;
+                        }
+
+                        // [修复] 在渲染前，先计算“真实”用词，以确保计数准确
+                        const validationResult = validateAndGetRealUsedWords(currentExtract, data.usedWords);
+                        currentRealUsedExtractItems = validationResult.realUsedItems;
+                        currentAiUsedCount = currentRealUsedExtractItems.length; // [修复] 使用真实计数
+                        
+                        // 1. 渲染文章
+                        const title = escapeHTML(data.passageTitle);
+                        let content = escapeHTML(data.passageContent);
+                        // [修复] 替换 \n 和 \\n
+                        content = content.replace(/(\\n|\n){2,}/g, '<br><br>').replace(/(\\n|\n)/g, '<br>');
+                        content = renderBold(content); // 渲染文章加粗
+                        
+                        // [修复] 使用 AI 返回的原始列表进行高亮，以匹配文章
+                        content = highlightWords(content, data.usedWords); 
+                        
+                        geminiReadingOutput.innerHTML = `<h3 class="text-2xl font-bold text-center mb-5">${title}</h3><div class="space-y-4">${content}</div>`;
+
+                        // 2. 存储用词列表和数量
+                        aiUsedCountEl.textContent = currentAiUsedCount; // [修复] 使用真实计数
+                        
+                        // 3. 渲染未使用的词
+                        const unusedWordsList = validationResult.unusedItems;
+                        if (unusedWordsList.length > 0) {
+                            geminiUnusedOutput.innerHTML = unusedWordsList.map(item => `<span>${item.word} (${item.part} ${item.meaning})</span>`).join('<br>');
+                            geminiUnusedContainer.style.display = 'block';
+                        } else {
+                            geminiUnusedContainer.style.display = 'none';
+                        }
+                        
+                        // 4. 渲染文章解析
+                        if (data.analysis) {
+                            let analysisHtml = '';
+                            if (data.analysis.structure) {
+                                let structure = escapeHTML(data.analysis.structure).replace(/(\\n|\n){2,}/g, '<br><br>').replace(/(\\n|\n)/g, '<br>'); // [修复]
+                                analysisHtml += `<p><strong>行文结构：</strong>${renderBold(structure)}</p>`;
+                            }
+                            if (data.analysis.understanding) {
+                                let understanding = escapeHTML(data.analysis.understanding).replace(/(\\n|\n){2,}/g, '<br><br>').replace(/(\\n|\n)/g, '<br>'); // [修复]
+                                analysisHtml += `<p class="mt-3"><strong>文章理解：</strong>${renderBold(understanding)}</p>`;
+                            }
+                            geminiAnalysisOutput.innerHTML = analysisHtml;
+                            geminiAnalysisContainer.style.display = 'block';
+                        }
+                        
+                        // 5. 渲染全文翻译
+                        if (data.translation) {
+                            let translation = escapeHTML(data.translation).replace(/(\\n|\n){2,}/g, '<br><br>').replace(/(\\n|\n)/g, '<br>'); // [修复]
+                            geminiTranslationOutput.innerHTML = `<p>${renderBold(translation)}</p>`; // [修复] 添加 renderBold
+                            geminiTranslationContainer.style.display = 'block';
+                        }
+
+                        // 6. 启用"确认抽取" 和 “导出” 按钮
+                        if (currentAiUsedCount > 0) { // [修复] 必须检查真实计数
+                            confirmExtractBtn.style.display = 'block';
+                            confirmExtractBtn.disabled = false;
+                            confirmExtractBtn.textContent = `3. ✅ 确认抽取 (永久移除 ${currentAiUsedCount} 个释义)`;
+                            
+                            exportArticleBtn.style.display = 'block';
+                            exportArticleBtn.disabled = false;
+                        } else {
+                            // 即使 AI 未使用任何词汇
+                            confirmExtractBtn.style.display = 'none';
+                            confirmExtractBtn.disabled = true;
+                            
+                            exportArticleBtn.style.display = 'block'; // 仍然允许导出
+                            exportArticleBtn.disabled = false; // 即使0个词也允许导出
+                        }
+
+                    } catch (jsonError) { 
+                        // JSON 解析失败
+                        console.error("JSON parsing failed:", jsonError, jsonString);
+                        // [修复] 确保 cleanedJsonString 在此作用域可见
+                        showAiError(`AI 返回了无效的 JSON 数据。请检查代理设置或密钥。\n\n服务器原始响应:\n${escapeHTML(cleanedJsonString || jsonString)}`);
+                    }
+                
+                } else { 
+                    // AI 响应为空或格式不符
+                    console.error("AI 响应格式无效或为空: ", result);
+                    showAiError("抱歉，AI 响应格式无效。");
+                }
+            
+            } catch (error) { 
+                // Fetch 或 重试 失败
+                console.error("AI Request Failed:", error);
+                let errorMsg = "抱歉，AI 请求失败。请稍后再试。";
+                if (error.message && error.message.includes("401")) {
+                     errorMsg = "AI 请求失败 (401 Unauthorized)：请检查您的 API 密钥是否正确、是否还有额度。";
+                } else if (error.message && error.message.includes("403")) {
+                    errorMsg = "AI 请求失败 (403 Forbidden)：请检查您的 API 密钥是否正确、是否已启用。";
+                } else if (error.message && error.message.includes("404")) {
+                     errorMsg = `AI 请求失败 (404 Not Found)：请检查您的“API 基础地址”和“AI 模型名称”(${modelName})是否正确。`;
+                } else if (error.message && error.message.includes("429")) {
+                     errorMsg = "AI 请求失败 (429 Quota Exceeded)：您已超出配额。如果是免费密钥，请绑定结算账户或等待配额刷新。";
+                } else if (error.message && error.message.includes("503")) {
+                     errorMsg = `AI 请求失败 (503 Service Unavailable)：代理服务器的后端渠道不可用。\n(${error.message})`;
+                } else if (error.message) {
+                    errorMsg += `\n(${error.message})`;
+                }
+                showAiError(errorMsg);
+            } finally { 
+                // 无论成功失败，恢复按钮
+                genReadingBtn.disabled = false;
+                genReadingBtn.innerHTML = '2. ✨ AI 生成考研阅读';
+            }
+        }
+        
+        /**
+         * [Canvas] 带指数退避的 Fetch
+         */
+        async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    // 只有 5xx 和 429 错误才重试
+                    if (response.status < 500 && response.status !== 429) {
+                        return response; // 立即返回成功或客户端错误 (如 400, 401, 404)
+                    }
+                    if (i === retries - 1) {
+                        return response; // 最后一次尝试，返回失败的响应
+                    }
+                    // 等待后重试
+                    await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+                } catch (error) {
+                    if (i === retries - 1) {
+                        throw error; // 最后一次尝试失败，抛出错误
+                    }
+                    // 等待后重试
+                    await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+                }
+            }
+        }
+        
+        /**
+         * 构建 Gemini 的 Prompt (V14 - 修复 AI“跑题”和“炫技”BUG)
+         */
+        function buildGeminiPrompt(themeFinal, wordListString) {
+            
+            // [修复] 这是基于您“刻薄尖锐”的修改意见优化的新版提示词
+            const systemPrompt = `
+[TASK]
+You are a JSON generator. Your task is to generate a JSON object that adheres *perfectly* to the provided SCHEMA.
+
+[INPUT DATA]
+1.  **THEME**: ${themeFinal} (You MUST focus on ONLY ONE sub-topic. Actively AVOID generic topics like 'AI ethics'. Be specific, current, and academic.)
+2.  **VOCABULARY LIST**:
+${wordListString}
+
+[QUALITY STANDARD & RULES (ABSOLUTELY MANDATORY)]
+1.  **LOGIC FIRST (THE 'ANTI-VOCAB-SHOW' RULE)**: 
+    * The article's quality (logical flow, tight argument, authoritative tone like 'The Economist') is the #1 priority.
+    * **WHAT TO AVOID (CRITICAL FAILURE)**: DO NOT write a "vocabulary show" ("词汇秀"). DO NOT force vocabulary where it doesn't belong ("词汇串烧"). DO NOT create awkward, unnatural sentences just to use a word. DO NOT use generic "moral anxiety" ("假大空"). The text must be natural and professional.
+2.  **NATURAL USAGE**: 
+    * While respecting Rule #1, you MUST *diligently attempt* to integrate as many words as possible from the VOCABULARY LIST naturally.
+    * It is better to use fewer words in a high-quality article than to use many words in a low-quality, unnatural article.
+3.  **ACCURATE COUNTING**: 
+    * The \`usedWords\` list in the JSON *must* be an accurate, complete list of *only* the words from the VOCABULARY LIST that were used in the \`passageContent\`.
+    * The \`meaning\` field in \`usedWords\` *must* be the Chinese meaning *exactly* as provided in the VOCABULARY LIST for that word.
+4.  **DEEP ANALYSIS (MANDATORY)**: 
+    * The 'analysis' section must be in-depth and academic (in Chinese).
+    * 'structure': Analyze the logical flow and argumentation of the paragraphs.
+    * 'understanding': Analyze the main idea, author's tone, and potential exam questions.
+5.  **NO META-COMMENTS (CRITICAL FAILURE)**: 
+    * Your response MUST be a pure JSON string. 
+    * **ABSOLUTELY DO NOT** include *any* meta-comments, thoughts, or notes (e.g., "(Sample Article...)", "Note:...", "Here is the JSON...", "(Avoiding common topics...)"). This will break the application.
+6.  **SCHEMA ADHERENCE**: The output *must* follow the SCHEMA.
+
+[SCHEMA]
+(Defined in the \`generationConfig.responseSchema\`)
+`;
+            
+            const userQuery = `Generate the JSON according to all rules.`; 
+            
+            return { systemPrompt, userQuery };
+        }
+
+        /**
+         * 构建 Gemini 的 Payload (V7 - 拍平 Schema)
+         */
+        function buildGeminiPayload(systemPrompt, userQuery) {
+            return {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            // [修复] “拍平”结构，避免AI理解错误
+                            passageTitle: { 
+                                type: "STRING",
+                                description: "The English title of the article." 
+                            },
+                            passageContent: { 
+                                type: "STRING",
+                                description: "The full English content of the article (300-400 words). Use \\n\\n for paragraph breaks."
+                            },
+                            analysis: {
+                                type: "OBJECT",
+                                properties: {
+                                    structure: { type: "STRING", description: "Analysis of the article's structure (in Chinese). Use \\n for newlines." },
+                                    understanding: { type: "STRING", description: "Analysis of the main idea and potential test points (in Chinese). Use \\n for newlines." }
+                                }
+                            },
+                            translation: { 
+                                type: "STRING",
+                                description: "The full Chinese translation of the article. Use \\n\\n for paragraph breaks." 
+                            },
+                            usedWords: {
+                                type: "ARRAY",
+                                description: "A list of ALL words from the VOCABULARY LIST that were used in the passageContent.",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        word: { type: "STRING", description: "The English word used (e.g., 'accelerate')." },
+                                        meaning: { type: "STRING", description: "The Chinese meaning *exactly* as provided in the vocabulary list (e.g., '加速，促进')." }
+                                    },
+                                    required: ["word", "meaning"] // 强制要求
+                                }
+                            }
+                        },
+                         required: ["passageTitle", "passageContent", "analysis", "translation", "usedWords"] // 强制要求
+                    }
+                }
+            };
+        }
+        
+        /**
+         * 渲染加粗 (**)
+         */
+        function renderBold(text) {
+             if (!text) return '';
+             // 将 **word** 替换为 <strong>word</strong>
+             // 使用非贪婪匹配 (.*?)
+            return text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        }
+
+        /**
+         * HTML 转义
+         */
+        function escapeHTML(str) {
+            if (!str) return '';
+            str = str.replace(/&/g, '&amp;');
+            return str.replace(/[<>"']/g, function(match) {
+                return {
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[match];
+            });
+        }
+        
+        /**
+         * 高亮文章中的单词 (V3 - 使用单一正则)
+         */
+        function highlightWords(content, usedWords) {
+            if (!usedWords || usedWords.length === 0) return content;
+            
+            const wordMap = new Map();
+            usedWords.forEach(item => {
+                if (item && item.word && typeof item.meaning !== 'undefined') {
+                    // 提取纯英文单词
+                    const wordMatch = item.word.match(/^[a-zA-Z-]+/);
+                    if (!wordMatch) return; // 如果没有匹配到英文单词，则跳过
+                    
+                    const word = wordMatch[0];
+                    const meaning = item.meaning; // 必须使用 schema 中的 meaning 字段
+                    
+                    const wordLower = word.toLowerCase();
+                    if (!wordMap.has(wordLower)) {
+                        wordMap.set(wordLower, []);
+                    }
+                    // 确保释义不重复
+                    if (!wordMap.get(wordLower).includes(meaning)) {
+                         wordMap.get(wordLower).push(meaning);
+                    }
+                } else {
+                    console.warn("Invalid usedWord item (missing word or meaning):", item);
+                }
+            });
+            
+            // 转义单词中的特殊正则字符
+            const uniqueWords = Array.from(wordMap.keys()).map(word => 
+                word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') 
+            );
+            
+            if (uniqueWords.length === 0) return content;
+            
+            // 按长度降序排序，优先匹配长单词 (例如 "part-time" 优先于 "part")
+            uniqueWords.sort((a, b) => b.length - a.length);
+            
+            const regex = new RegExp(`\\b(${uniqueWords.join('|')})\\b`, 'gi');
+            
+            return content.replace(regex, (match) => {
+                const wordLower = match.toLowerCase();
+                const meanings = wordMap.get(wordLower);
+
+                // 将所有释义合并
+                const titleText = (meanings && meanings.length > 0) ? `${match} (${meanings.join('; ')})` : match;
+                const titleAttr = escapeHTML(titleText);
+                
+                const cambridgeUrl = `https://dictionary.cambridge.org/zhs/词典/英语-汉语-简体/${encodeURIComponent(wordLower)}`;
+                
+                return `<a href="${cambridgeUrl}" target="_blank" class="highlighted-word" title="${titleAttr}"><u>${match}</u></a>`;
+            });
+        }
+
+        /**
+         * [修复] 验证AI用词，返回“真实”用词和“未使用”词 (V2 - 修复计数BUG)
+         */
+        function validateAndGetRealUsedWords(extractList, aiUsedList) {
+            const realUsedItems = [];
+            const realUsedKeys = new Set(); // 用于去重和快速查找
+            
+            if (aiUsedList) {
+                aiUsedList.forEach(aiWord => {
+                    if (!aiWord || !aiWord.word || typeof aiWord.meaning === 'undefined') {
+                        return; // AI 返回了无效格式
+                    }
+                    
+                    const aiWordLower = aiWord.word.toLowerCase();
+                    // [修复] AI 返回的 meaning 也可能不标准
+                    const aiMeaningCleaned = aiWord.meaning.toLowerCase().split(';')[0].trim(); // 只取第一个释义进行粗略匹配
+
+                    // 查找第一个匹配的释义单元
+                    const matchingExtractItem = extractList.find(item => {
+                        const itemMeaningCleaned = item.meaning.toLowerCase().split(';')[0].trim();
+                        return item.word.toLowerCase() === aiWordLower && 
+                               (item.meaning.toLowerCase() === aiWord.meaning.toLowerCase() || itemMeaningCleaned === aiMeaningCleaned);
+                    });
+
+                    if (matchingExtractItem) {
+                        // 确保我们只添加一次
+                        const key = `${matchingExtractItem.wordIndex}-${matchingExtractItem.partIndex}-${matchingExtractItem.meaningIndex}`;
+                        if (!realUsedKeys.has(key)) {
+                            realUsedItems.push(matchingExtractItem);
+                            realUsedKeys.add(key);
+                        }
+                    } else {
+                        console.warn("AI used a word/meaning pair not in extract list:", aiWord);
+                    }
+                });
+            }
+
+            // 找出未使用的
+            const unusedItems = extractList.filter(item => {
+                const key = `${item.wordIndex}-${item.partIndex}-${item.meaningIndex}`;
+                return !realUsedKeys.has(key);
+            });
+
+            return { realUsedItems, unusedItems };
+        }
+
+        /**
+         * 显示 AI 错误
+         */
+        function showAiError(message) {
+            geminiReadingOutput.innerHTML = `<div class="p-4 bg-red-100 border border-red-300 text-red-800 rounded-lg">${escapeHTML(message).replace(/\n/g, '<br>')}</div>`;
+            aiOutputSection.style.display = 'block';
+            
+            geminiUnusedContainer.style.display = 'none';
+            geminiAnalysisContainer.style.display = 'none';
+            geminiTranslationContainer.style.display = 'none';
+            aiUsedCountEl.textContent = '0';
+            currentAiUsedCount = 0;
+        }
+            
+        // --- 5. [新功能] 文章导出 ---
+        
+        exportArticleBtn.addEventListener('click', handleExportArticle);
+        
+        /**
+         * 构建导出的 HTML 内容
+         */
+        function buildExportHTML(articleHtml, analysisHtml, translationHtml) {
+            const articleTitle = geminiReadingOutput.querySelector('h3')?.textContent || '导出的文章';
+            
+            // [关键] 必须包含高亮和加粗的样式
+            const exportStyles = `
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                    line-height: 1.6;
+                    background-color: #f8fafc;
+                    color: #111827;
+                    max-w: 800px;
+                    margin: 20px auto;
+                    padding: 20px;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+                }
+                h1 {
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                    border-bottom: 1px solid #cbd5e1;
+                    padding-bottom: 10px;
+                    margin-bottom: 1.5rem;
+                }
+                h2 {
+                    font-size: 1.25rem;
+                    font-weight: 600;
+                    color: #1e3a8a; /* 蓝色 */
+                    margin-top: 2rem;
+                    border-bottom: 1px solid #dbeafe;
+                    padding-bottom: 8px;
+                }
+                .highlighted-word {
+                    text-decoration: underline;
+                    text-decoration-color: #fdba74;
+                    text-decoration-thickness: 2px;
+                    color: #1d4ed8;
+                    font-weight: 600;
+                    cursor: pointer;
+                }
+                .highlighted-word:hover {
+                    background-color: #fef3c7;
+                    color: #be123c;
+                }
+                strong {
+                    font-weight: 700;
+                    color: #000;
+                }
+                .analysis, .translation {
+                    background-color: #f9fafb;
+                    border: 1px solid #f3f4f6;
+                    padding: 15px;
+                    border-radius: 8px;
+                    font-size: 0.95rem;
+                }
+                .analysis {
+                    background-color: #f5f3ff; /* 紫色-50 */
+                    color: #3730a3;
+                }
+                .translation {
+                    background-color: #f8fafc; /* 灰色-50 */
+                    color: #374151;
+                }
+                p { margin-bottom: 1em; }
+            `;
+            
+            return `
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>${escapeHTML(articleTitle)}</title>
+                    <style>
+                        ${exportStyles}
+                    </style>
+                </head>
+                <body>
+                    <h1>${escapeHTML(articleTitle)}</h1>
+                    
+                    <section class="article-content">
+                        ${articleHtml}
+                    </section>
+                    
+                    <section class="analysis-container">
+                        <h2>深度文章解析</h2>
+                        <div class="analysis">
+                            ${analysisHtml}
+                        </div>
+                    </section>
+                    
+                    <section class="translation-container">
+                        <h2>全文翻译</h2>
+                        <div class="translation">
+                            ${translationHtml}
+                        </div>
+                    </section>
+                </body>
+                </html>
+            `;
+        }
+
+        /**
+         * 处理导出按钮点击
+         */
+        function handleExportArticle() {
+            try {
+                const articleHtml = geminiReadingOutput.innerHTML;
+                const analysisHtml = geminiAnalysisOutput.innerHTML;
+                const translationHtml = geminiTranslationOutput.innerHTML;
+
+                if (!articleHtml || geminiReadingOutput.textContent.includes("抱歉")) {
+                    showToast("没有可导出的文章");
+                    return;
+                }
+
+                const fullHtml = buildExportHTML(articleHtml, analysisHtml, translationHtml);
+                
+                const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                
+                const title = (geminiReadingOutput.querySelector('h3')?.textContent || 'article-export').replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '-').substring(0, 50);
+                a.download = `${title}.html`;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(url);
+                
+                showToast("文章导出成功！");
+
+            } catch (e) {
+                console.error("导出失败:", e);
+                showToast("导出失败，请查看控制台");
+            }
+        }
+            
+        // --- 页面加载 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadApiSettings(); 
+            
+            const savedText = localStorage.getItem(TEXT_KEY);
+            const savedDB = localStorage.getItem(DB_KEY);
+
+            if (savedText) {
+                vocabInput.value = savedText;
+            }
+
+            if (savedDB) {
+                try {
+                    currentDatabase = JSON.parse(savedDB);
+                    if (savedText) {
+                         originalDatabase = parseVocabText(savedText);
+                    } else {
+                         originalDatabase = deepClone(currentDatabase);
+                    }
+                } catch (e) {
+                    console.error("Failed to parse saved database from localStorage", e);
+                    localStorage.removeItem(DB_KEY);
+localStorage.removeItem(TEXT_KEY);
+                }
+            }
+            
+            updateTotalStatsDisplay();
+            initializeCategorySelection();
+            updateDbStatusMonitor(); // [New] Call
+        });
+
+    </script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
