@@ -71,6 +71,9 @@ bear v. 忍受；承担；生育 n. 熊
 ## 技术栈
 
 HTML5
+
 Tailwind CSS (via CDN)
+
 JavaScript (ESM)
+
 Google Gemini API
